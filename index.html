@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>회복탄력성 진단 (KRQ-53)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Noto Sans KR', sans-serif; background-color: #f8fafc; }
+        .radio-btn:checked + label { background-color: #3b82f6; color: white; border-color: #3b82f6; }
+        .progress-bar { transition: width 0.5s ease-in-out; }
+        @media print { .no-print { display: none; } }
+    </style>
+</head>
+<body class="text-slate-800 antialiased">
+
+<div id="app" class="max-w-4xl mx-auto px-4 py-8 md:py-12">
+    <!-- Header -->
+    <header class="text-center mb-10 no-print">
+        <h1 class="text-3xl md:text-4xl font-bold text-blue-700 mb-2">회복탄력성 진단 (KRQ-53)</h1>
+        <p class="text-slate-500">자신의 심리적 회복력을 객관적으로 확인해 보세요.</p>
+    </header>
+
+    <!-- Start Screen -->
+    <div id="start-screen" class="bg-white rounded-2xl shadow-xl p-8 text-center">
+        <div class="mb-6 flex justify-center">
+            <div class="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+        </div>
+        <h2 class="text-2xl font-bold mb-4">검사 전 안내사항</h2>
+        <div class="text-left space-y-3 mb-8 text-slate-600 max-w-lg mx-auto">
+            <p>• 총 53개의 문항으로 구성되어 있습니다.</p>
+            <p>• 정답이 없으므로 평소 자신의 생각대로 응답해 주세요.</p>
+            <p>• 결과는 3개의 대항목과 9개의 소항목으로 분석됩니다.</p>
+            <p>• 예상 소요 시간은 약 10~15분입니다.</p>
+        </div>
+        <button onclick="startTest()" class="w-full md:w-64 bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-all transform hover:scale-105 shadow-lg">
+            검사 시작하기
+        </button>
+    </div>
+
+    <!-- Test Screen -->
+    <div id="test-screen" class="hidden">
+        <!-- Progress Bar -->
+        <div class="bg-white rounded-full h-3 mb-8 shadow-inner overflow-hidden flex">
+            <div id="total-progress" class="bg-blue-500 h-full progress-bar" style="width: 0%"></div>
+        </div>
+
+        <div id="section-info" class="mb-6">
+            <h3 id="current-section-title" class="text-xl font-bold text-blue-600">자기조절능력</h3>
+            <p id="section-desc" class="text-sm text-slate-500">자신을 다스릴 수 있는 능력을 측정합니다.</p>
+        </div>
+
+        <div id="questions-container" class="space-y-6">
+            <!-- Questions will be injected here -->
+        </div>
+
+        <div class="flex justify-between mt-10 no-print">
+            <button id="prev-btn" onclick="prevPage()" class="px-8 py-3 rounded-xl border border-slate-300 text-slate-500 font-medium hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed">이전</button>
+            <button id="next-btn" onclick="nextPage()" disabled class="px-10 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors">다음</button>
+        </div>
+    </div>
+
+    <!-- Result Screen -->
+    <div id="result-screen" class="hidden space-y-8">
+        <div class="bg-white rounded-2xl shadow-xl p-8 text-center relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-2 bg-blue-600"></div>
+            <h2 class="text-2xl font-bold text-slate-700 mb-2">나의 회복탄력성 종합 점수</h2>
+            <div id="total-score-display" class="text-6xl font-black text-blue-600 my-6">0</div>
+            <p id="total-interpretation" class="text-lg font-medium text-slate-600 max-w-xl mx-auto"></p>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div class="bg-white rounded-2xl shadow-lg p-6">
+                <h3 class="font-bold text-lg mb-4 text-slate-700">대항목별 비교 (vs 한국인 평균)</h3>
+                <canvas id="mainChart"></canvas>
+            </div>
+            <div class="bg-white rounded-2xl shadow-lg p-6">
+                <h3 class="font-bold text-lg mb-4 text-slate-700">9대 요소 상세 분석</h3>
+                <canvas id="subChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Detailed Table -->
+        <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
+            <table class="w-full text-left border-collapse">
+                <thead class="bg-slate-50">
+                    <tr>
+                        <th class="px-6 py-4 font-bold text-slate-600">검사항목</th>
+                        <th class="px-6 py-4 font-bold text-slate-600 text-right">나의 점수</th>
+                        <th class="px-6 py-4 font-bold text-slate-600 text-right">한국인 평균</th>
+                    </tr>
+                </thead>
+                <tbody id="result-table-body" class="divide-y divide-slate-100">
+                    <!-- Rows injected here -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex flex-col sm:flex-row justify-center gap-4 no-print pt-8">
+            <button onclick="location.reload()" class="px-8 py-4 bg-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-300 transition-colors">다시 검사하기</button>
+            <button onclick="window.print()" class="px-8 py-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clip-rule="evenodd" />
+                </svg>
+                PDF 저장 / 인쇄
+            </button>
+        </div>
+    </div>
+
+    <!-- Modal Message -->
+    <div id="modal-container" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-2xl p-8 max-w-sm w-full mx-4 shadow-2xl transform transition-all scale-95 opacity-0" id="modal-box">
+            <h3 id="modal-title" class="text-xl font-bold mb-4">알림</h3>
+            <p id="modal-message" class="text-slate-600 mb-6"></p>
+            <button onclick="closeModal()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700">확인</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Data Structure
+    const questions = [
+        { id: 1, text: "나는 어려운 일이 닥쳤을 때 감정을 통제 할 수 있다." },
+        { id: 2, text: "내가 무슨 생각을 하면, 그 생각이 내 기분에 어떤 영향을 미칠지 잘 알아챈다." },
+        { id: 3, text: "논쟁거리가 되는 문제를 가족이나 친구들과 토론할 때 내 감정을 잘 통제할 수 있다." },
+        { id: 4, text: "집중해야 할 중요한 일이 생기면 신바람이 나기보다는 더 스트레스를 받는 편이다.", reverse: true },
+        { id: 5, text: "나는 내 감정에 잘 휘말린다.", reverse: true },
+        { id: 6, text: "때때로 내 감정적인 문제 때문에 학교나 직장에서 공부하거나 일할 때 집중하기 힘들다.", reverse: true },
+        { id: 7, text: "당장 해야 할 일이 있으면 나는 어떠한 유혹이나 방해도 잘 이겨내고 할 일을 한다." },
+        { id: 8, text: "아무리 당황스럽고 어려운 상황이 닥쳐도, 나는 내가 어떤 생각을 하고 있는지 스스로 잘 안다." },
+        { id: 9, text: "누군가가 나에게 화를 낼 경우 나는 우선 그 사람의 의견을 잘 듣는다." },
+        { id: 10, text: "일이 생각대로 잘 안 풀리면 쉽게 포기하는 편이다.", reverse: true },
+        { id: 11, text: "평소 경제적인 소비나 지출 규모에 대해 별 다른 계획 없이 지낸다.", reverse: true },
+        { id: 12, text: "미리 계획을 세우기 보다는 즉흥적으로 일을 처리하는 편이다.", reverse: true },
+        { id: 13, text: "문제가 생기면 여러 가지 가능한 해결 방안에 대해 먼저 생각한 후에 해결하려고 노력한다." },
+        { id: 14, text: "어려운 일이 생기면 그 원인이 무엇인지 신중하게 생각한 후에 그 문제를 해결하려고 노력한다." },
+        { id: 15, text: "나는 대부분의 상황에서 문제의 원인을 잘 알고 있다고 믿는다." },
+        { id: 16, text: "나는 사건이나 상황을 잘 파악하지 못한다는 이야기를 종종 듣는다.", reverse: true },
+        { id: 17, text: "문제가 생기면 나는 성급하게 결론을 내린다는 이야기를 종종 듣는다.", reverse: true },
+        { id: 18, text: "어려운 일이 생기면 그 원인을 완전히 이해하지 못했다 하더라도 일단 빨리 해결하는 것이 좋다고 생각한다.", reverse: true },
+        { id: 19, text: "나는 분위기나 대화 상대에 따라 대화를 잘 이끌어 갈 수 있다." },
+        { id: 20, text: "나는 재치 있는 농담을 잘한다." },
+        { id: 21, text: "나는 내가 표현하고자 하는 바에 대한 적절한 문구나 단어를 잘 찾아낸다." },
+        { id: 22, text: "나는 윗사람과 대화하는 것이 부담스럽다.", reverse: true },
+        { id: 23, text: "나는 대화 중에 다른 생각을 하느라 대화 내용을 놓칠 때가 종종 있다.", reverse: true },
+        { id: 24, text: "대화를 할 때 하고 싶은 말을 다 하지 못하고 주저할 때가 종종 있다.", reverse: true },
+        { id: 25, text: "사람들의 얼굴 표정을 보면 어떤 감정인지 알 수 있다." },
+        { id: 26, text: "슬퍼하거나 화를 내거나 당황하는 사람을 보면 그들이 어떤 생각을 하는지 잘 알 수 있다." },
+        { id: 27, text: "동료가 화를 낼 경우 나는 그 이유를 꽤 잘 아는 편이다." },
+        { id: 28, text: "나는 사람들의 행동 방식을 때로 이해하기 힘들다.", reverse: true },
+        { id: 29, text: "친한 친구나 애인 혹은 배우자로부터 '당신은 나를 이해 못해'라는 말을 종종 듣는다.", reverse: true },
+        { id: 30, text: "동료와 친구들은 내가 자기 말을 잘 듣지 않는다고 한다.", reverse: true },
+        { id: 31, text: "나는 내 주변 사람들로부터 사랑과 관심을 받고 있다." },
+        { id: 32, text: "나는 내 친구들을 정말로 좋아한다." },
+        { id: 33, text: "내 주변 사람들은 내 기분을 잘 이해한다." },
+        { id: 34, text: "서로 도움을 주고 받는 친구가 별로 없는 편이다.", reverse: true },
+        { id: 35, text: "나와 정기적으로 만나는 사람들은 대부분 나를 싫어하게 된다.", reverse: true },
+        { id: 36, text: "서로 마음을 터놓고 얘기할 수 있는 친구가 거의 없다.", reverse: true },
+        { id: 37, text: "열심히 일하면 언제나 보답이 있으리라고 생각한다." },
+        { id: 38, text: "맞든 아니든, '아무리 어려운 문제라도 나는 해결할 수 있다'고 일단 믿는 것이 좋다고 생각한다." },
+        { id: 39, text: "어려운 상황이 닥쳐도 나는 모든 일이 다 잘 해결될 거라고 확신한다." },
+        { id: 40, text: "내가 어떤 일을 마치고 나면, 주변 사람들이 부정적인 평가를 할까봐 걱정한다.", reverse: true },
+        { id: 41, text: "나에게 일어나는 대부분의 문제들은 나로서 어쩔 수 없는 상황에 의해 발생한다고 믿는다.", reverse: true },
+        { id: 42, text: "누가 나의 미래에 대해 물어보면, 성공한 나의 모습을 상상하기 힘들다.", reverse: true },
+        { id: 43, text: "내 삶은 내가 생각하는 이상적인 삶에 가깝다." },
+        { id: 44, text: "내 인생의 여러 가지 조건들은 만족스럽다." },
+        { id: 45, text: "나는 내 삶에 만족한다." },
+        { id: 46, text: "나는 내 삶에서 중요하다고 생각한 것들은 다 갖고 있다." },
+        { id: 47, text: "나는 다시 태어나도 나의 현재 삶을 다시 살고 싶다." },
+        { id: 48, text: "나는 다양한 종류의 많은 사람들에게 고마움을 느낀다." },
+        { id: 49, text: "내가 고맙게 여기는 것들을 모두 적는다면, 아주 긴 목록이 될 것이다." },
+        { id: 50, text: "나이가 들어갈수록 내 삶의 일부가 된 사람, 사건, 생활에 대해 감사하는 마음이 더 커져간다." },
+        { id: 51, text: "나는 감사해야 할 것이 별로 없다.", reverse: true },
+        { id: 52, text: "세상을 둘러볼 때, 내가 고마워 할 것은 별로 없다.", reverse: true },
+        { id: 53, text: "사람이나 일에 대한 고마움을 한참 시간이 지난 후에야 겨우 느낀다.", reverse: true }
+    ];
+
+    const sections = [
+        { title: "자기조절능력", desc: "자신을 다스릴 수 있는 능력을 측정합니다.", range: [1, 18], avg: 63.5 },
+        { title: "대인관계능력", desc: "함께 살아가는 타인과 소통하는 능력을 측정합니다.", range: [19, 36], avg: 67.8 },
+        { title: "긍정성", desc: "행복을 발견하고 감사하는 삶의 태도를 측정합니다.", range: [37, 53], avg: 63.4 }
+    ];
+
+    const subSections = [
+        { title: "감정조절", range: [1, 6] }, { title: "충동통제", range: [7, 12] }, { title: "원인분석", range: [13, 18] },
+        { title: "소통능력", range: [19, 24] }, { title: "공감능력", range: [25, 30] }, { title: "자아확장력", range: [31, 36] },
+        { title: "자아낙관성", range: [37, 42] }, { title: "생활만족도", range: [43, 47] }, { title: "감사하기", range: [48, 53] }
+    ];
+
+    let currentPage = 0;
+    let answers = {};
+
+    // App Logic
+    function startTest() {
+        document.getElementById('start-screen').classList.add('hidden');
+        document.getElementById('test-screen').classList.remove('hidden');
+        renderPage();
+    }
+
+    function renderPage() {
+        const section = sections[currentPage];
+        document.getElementById('current-section-title').innerText = section.title;
+        document.getElementById('section-desc').innerText = section.desc;
+        
+        const container = document.getElementById('questions-container');
+        container.innerHTML = '';
+
+        const pageQuestions = questions.filter(q => q.id >= section.range[0] && q.id <= section.range[1]);
+
+        pageQuestions.forEach(q => {
+            const card = document.createElement('div');
+            card.className = 'bg-white rounded-xl p-5 shadow-sm border border-slate-100';
+            
+            let choicesHtml = '';
+            [1, 2, 3, 4, 5].forEach(val => {
+                const label = val === 1 ? '전혀 그렇지 않다' : (val === 3 ? '보통이다' : (val === 5 ? '매우 그렇다' : ''));
+                choicesHtml += `
+                    <div class="flex-1">
+                        <input type="radio" name="q${q.id}" id="q${q.id}_${val}" value="${val}" class="hidden radio-btn" 
+                               ${answers[q.id] == val ? 'checked' : ''} onchange="saveAnswer(${q.id}, ${val})">
+                        <label for="q${q.id}_${val}" class="flex flex-col items-center justify-center p-3 border border-slate-200 rounded-lg cursor-pointer hover:border-blue-400 transition-all h-full">
+                            <span class="text-lg font-bold mb-1">${val}</span>
+                            <span class="text-[10px] md:text-xs text-center leading-tight text-slate-500">${label}</span>
+                        </label>
+                    </div>
+                `;
+            });
+
+            card.innerHTML = `
+                <p class="text-lg font-medium mb-4 text-slate-700 leading-snug"><span class="text-blue-500 font-bold mr-2">${q.id}.</span>${q.text}</p>
+                <div class="flex gap-2 min-w-[320px] overflow-x-auto pb-2">${choicesHtml}</div>
+            `;
+            container.appendChild(card);
+        });
+
+        window.scrollTo(0, 0);
+        updateNavigation();
+        updateProgressBar();
+    }
+
+    function saveAnswer(qId, value) {
+        answers[qId] = value;
+        checkPageCompletion();
+    }
+
+    function checkPageCompletion() {
+        const section = sections[currentPage];
+        const pageQIds = questions.filter(q => q.id >= section.range[0] && q.id <= section.range[1]).map(q => q.id);
+        const allAnswered = pageQIds.every(id => answers[id]);
+        document.getElementById('next-btn').disabled = !allAnswered;
+    }
+
+    function updateNavigation() {
+        document.getElementById('prev-btn').disabled = currentPage === 0;
+        document.getElementById('next-btn').innerText = currentPage === sections.length - 1 ? '결과 보기' : '다음';
+        checkPageCompletion();
+    }
+
+    function updateProgressBar() {
+        const progress = ((currentPage + 1) / sections.length) * 100;
+        document.getElementById('total-progress').style.width = `${progress}%`;
+    }
+
+    function nextPage() {
+        if (currentPage < sections.length - 1) {
+            currentPage++;
+            renderPage();
+        } else {
+            calculateResults();
+        }
+    }
+
+    function prevPage() {
+        if (currentPage > 0) {
+            currentPage--;
+            renderPage();
+        }
+    }
+
+    function calculateResults() {
+        // 1. Process Scores
+        const processedAnswers = {};
+        questions.forEach(q => {
+            const rawVal = parseInt(answers[q.id]);
+            processedAnswers[q.id] = q.reverse ? (6 - rawVal) : rawVal;
+        });
+
+        // 2. Sub-section Scores
+        const subScores = subSections.map(sub => {
+            let sum = 0;
+            for(let i = sub.range[0]; i <= sub.range[1]; i++) sum += processedAnswers[i];
+            return { title: sub.title, score: sum };
+        });
+
+        // 3. Main-section Scores
+        const mainScores = sections.map((sec, idx) => {
+            const relatedSubIndices = [idx * 3, idx * 3 + 1, idx * 3 + 2];
+            const sum = relatedSubIndices.reduce((acc, subIdx) => acc + subScores[subIdx].score, 0);
+            return { title: sec.title, score: sum, avg: sec.avg };
+        });
+
+        const totalScore = mainScores.reduce((acc, cur) => acc + cur.score, 0);
+
+        displayResults(totalScore, mainScores, subScores);
+    }
+
+    function displayResults(total, mains, subs) {
+        document.getElementById('test-screen').classList.add('hidden');
+        document.getElementById('result-screen').classList.remove('hidden');
+
+        // Total Score
+        const scoreElem = document.getElementById('total-score-display');
+        scoreElem.innerText = total;
+
+        const interpretationElem = document.getElementById('total-interpretation');
+        if (total >= 200) {
+            interpretationElem.innerHTML = "당신은 <span class='text-blue-600 font-bold'>회복탄력성이 매우 높습니다</span>. 웬만한 불행한 사건은 당신을 쉽게 흔들지 못하며, 스트레스 상황을 오히려 성장의 기회로 삼는 능력이 탁월합니다.";
+        } else if (total >= 180) {
+            interpretationElem.innerHTML = "당신은 <span class='text-green-600 font-bold'>보통 수준의 회복탄력성</span>을 가지고 있습니다. 사소한 일에 가끔 흔들리기도 하지만 대체로 잘 이겨냅니다. 조금만 더 노력하면 더 단단한 마음을 가질 수 있습니다.";
+        } else {
+            interpretationElem.innerHTML = "당신은 현재 <span class='text-red-500 font-bold'>회복탄력성이 다소 낮아진 상태</span>입니다. 사소한 부정적 사건에도 쉽게 마음의 상처를 입을 수 있습니다. 자신을 돌보고 마음의 근육을 키우는 연습이 필요합니다.";
+        }
+
+        // Main Chart
+        new Chart(document.getElementById('mainChart'), {
+            type: 'bar',
+            data: {
+                labels: mains.map(m => m.title),
+                datasets: [
+                    { label: '나의 점수', data: mains.map(m => m.score), backgroundColor: 'rgba(59, 130, 246, 0.8)' },
+                    { label: '한국인 평균', data: mains.map(m => m.avg), backgroundColor: 'rgba(203, 213, 225, 0.8)' }
+                ]
+            },
+            options: { responsive: true, scales: { y: { beginAtZero: true, max: 100 } } }
+        });
+
+        // Sub Chart
+        new Chart(document.getElementById('subChart'), {
+            type: 'radar',
+            data: {
+                labels: subs.map(s => s.title),
+                datasets: [{
+                    label: '항목별 점수',
+                    data: subs.map(s => s.score),
+                    fill: true,
+                    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                    borderColor: 'rgb(59, 130, 246)',
+                    pointBackgroundColor: 'rgb(59, 130, 246)'
+                }]
+            },
+            options: { elements: { line: { borderWidth: 3 } } }
+        });
+
+        // Table Rows
+        const tbody = document.getElementById('result-table-body');
+        tbody.innerHTML = '';
+        
+        mains.forEach(m => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td class="px-6 py-4 font-bold text-slate-700">${m.title}</td>
+                <td class="px-6 py-4 text-right font-bold text-blue-600">${m.score}</td>
+                <td class="px-6 py-4 text-right text-slate-400">${m.avg}</td>
+            `;
+            tbody.appendChild(row);
+        });
+
+        subs.forEach(s => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td class="px-6 py-3 pl-12 text-slate-600">${s.title}</td>
+                <td class="px-6 py-3 text-right font-medium text-slate-700">${s.score}</td>
+                <td class="px-6 py-3 text-right text-slate-300">-</td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
+
+    // Modal helpers
+    function showMessage(title, message) {
+        document.getElementById('modal-title').innerText = title;
+        document.getElementById('modal-message').innerText = message;
+        document.getElementById('modal-container').classList.remove('hidden');
+        setTimeout(() => {
+            document.getElementById('modal-box').classList.remove('scale-95', 'opacity-0');
+        }, 10);
+    }
+
+    function closeModal() {
+        document.getElementById('modal-box').classList.add('scale-95', 'opacity-0');
+        setTimeout(() => {
+            document.getElementById('modal-container').classList.add('hidden');
+        }, 200);
+    }
+</script>
+
+</body>
+</html>
